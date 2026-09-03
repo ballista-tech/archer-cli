@@ -54,8 +54,6 @@ impl GlobalArgs {
     }
 }
 
-// Everything a market creator, market maker or taker can sign for.
-//
 #[derive(Subcommand)]
 pub enum PublicCommands {
     /// Market lifecycle: create and inspect
@@ -81,6 +79,10 @@ pub enum PublicCommands {
     /// Read-only observability: market, books, liquidity, swaps, vaults
     #[command(subcommand)]
     Observe(commands::observe::ObserveCommands),
+
+    /// ARCHER_GLOBAL_AUTHORITY-only: fees, market status, maker registry.
+    #[command(subcommand)]
+    Authority(commands::authority::AuthorityCommands),
 }
 
 pub fn dispatch(command: PublicCommands, config: &CliConfig) -> Result<(), CliError> {
@@ -91,5 +93,6 @@ pub fn dispatch(command: PublicCommands, config: &CliConfig) -> Result<(), CliEr
         PublicCommands::Registry(cmd) => commands::registry::handle(cmd, config),
         PublicCommands::Maker(cmd) => commands::maker::handle(cmd, config),
         PublicCommands::Observe(cmd) => commands::observe::handle(cmd, config),
+        PublicCommands::Authority(cmd) => commands::authority::handle(cmd, config),
     }
 }

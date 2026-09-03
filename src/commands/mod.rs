@@ -1,3 +1,4 @@
+pub mod authority;
 pub mod admin;
 pub mod fee;
 pub mod maker;

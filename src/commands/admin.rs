@@ -38,12 +38,12 @@ pub fn handle(cmd: AdminCommands, config: &CliConfig) -> Result<(), CliError> {
                 confirm,
             )?;
 
-            let ixs =
+            let ix =
                 create_transfer_admin_instruction(market_pk, config.keypair.pubkey(), new_admin_pk);
 
             tx::send_transaction(
                 &config.rpc_client,
-                ixs,
+                vec![ix],
                 &[&config.keypair],
                 config.dry_run,
                 config.priority_fee,

@@ -14,7 +14,7 @@ name = "archer"
 path = "src/main.rs"
 
 [dependencies]
-archer-sdk = { path = "../archer-sdk", features = ["client"] }
+archer-sdk = { git = "https://github.com/ballista-tech/archer-sdk", branch = "main", features = ["client"] }
 
 solana-sdk = "2.3.0"
 solana-client = "2.3.0"
