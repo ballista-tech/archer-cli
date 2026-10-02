@@ -171,6 +171,14 @@ fn show_maker_book(config: &CliConfig, addr: &str) -> Result<(), CliError> {
 
     let book = load_maker_book(&account.data)?;
 
+    // The projected quote split reserves quote inclusive of the market's maker
+    // fee, so the projection needs the fee from the book's market.
+    let market_account = config
+        .rpc_client
+        .get_account(&book.market)
+        .map_err(|_| CliError::AccountNotFound(book.market.to_string()))?;
+    let maker_fee_ppm = load_market_header(&market_account.data)?.maker_fee_ppm;
+
     if config.json_output {
         let bids: Vec<_> = book
             .bid_levels
@@ -201,7 +209,7 @@ fn show_maker_book(config: &CliConfig, addr: &str) -> Result<(), CliError> {
         // fields lag when a reprice is pending. Both are reported so a stuck book
         // is diagnosable.
         let (projected_quote_locked, projected_quote_free) = book
-            .projected_quote_balances()
+            .projected_quote_balances(maker_fee_ppm)
             .unwrap_or((book.quote_locked.as_u64(), book.quote_free.as_u64()));
 
         println!(
@@ -225,7 +233,7 @@ fn show_maker_book(config: &CliConfig, addr: &str) -> Result<(), CliError> {
                 "mid_at_last_sync": book.mid_at_last_sync,
                 "quote_sync_pending": book.mid_at_last_sync != 0
                     && book.mid_at_last_sync != book.mid_price_ticks,
-                "quote_sync_unfundable": !book.is_quote_sync_fundable(),
+                "quote_sync_unfundable": !book.is_quote_sync_fundable(maker_fee_ppm),
                 "bids": bids,
                 "asks": asks,
             })
@@ -260,7 +268,7 @@ fn show_maker_book(config: &CliConfig, addr: &str) -> Result<(), CliError> {
         ),
     );
 
-    match book.projected_quote_balances() {
+    match book.projected_quote_balances(maker_fee_ppm) {
         Ok((locked, free)) => {
             display::print_kv("Quote (free/locked):", &format!("{} / {}", free, locked));
             if book.mid_at_last_sync != 0 && book.mid_at_last_sync != book.mid_price_ticks {
