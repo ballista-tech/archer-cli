@@ -79,16 +79,24 @@ pub enum AuthorityCommands {
     RegistryRegister {
         #[arg(long)]
         market: String,
+        /// Maker book PDA to admit
+        #[arg(long, required_unless_present = "maker", conflicts_with = "maker")]
+        maker_book: Option<String>,
+        /// Maker wallet; its maker book PDA for the market is derived
         #[arg(long)]
-        maker_book: String,
+        maker: Option<String>,
     },
 
     /// Remove a maker book from a market's registry
     RegistryDeregister {
         #[arg(long)]
         market: String,
+        /// Maker book PDA to remove
+        #[arg(long, required_unless_present = "maker", conflicts_with = "maker")]
+        maker_book: Option<String>,
+        /// Maker wallet; its maker book PDA for the market is derived
         #[arg(long)]
-        maker_book: String,
+        maker: Option<String>,
     },
 }
 
@@ -162,26 +170,41 @@ pub fn handle(cmd: AuthorityCommands, config: &CliConfig) -> Result<(), CliError
             send(config, vec![ix])
         }
 
-        AuthorityCommands::RegistryRegister { market, maker_book } => {
+        AuthorityCommands::RegistryRegister {
+            market,
+            maker_book,
+            maker,
+        } => {
             require_authority(config, "Maker registration")?;
-            let (market_pk, book_pk) = pair(&market, &maker_book)?;
+            let market_pk = parse_pubkey(&market)?;
+            let book_pk = resolve_maker_book(&market_pk, maker_book.as_deref(), maker.as_deref())?;
 
             display::print_header("Register Maker");
             display::print_kv("Market:", &market);
-            display::print_kv("Maker book:", &maker_book);
+            if let Some(maker) = &maker {
+                display::print_kv("Maker:", maker);
+            }
+            display::print_kv("Maker book:", &book_pk.to_string());
 
-            let ix =
-                build::build_register_maker_ix(&market_pk, &config.keypair.pubkey(), &book_pk);
+            let ix = build::build_register_maker_ix(&market_pk, &config.keypair.pubkey(), &book_pk);
             send(config, vec![ix])
         }
 
-        AuthorityCommands::RegistryDeregister { market, maker_book } => {
+        AuthorityCommands::RegistryDeregister {
+            market,
+            maker_book,
+            maker,
+        } => {
             require_authority(config, "Maker deregistration")?;
-            let (market_pk, book_pk) = pair(&market, &maker_book)?;
+            let market_pk = parse_pubkey(&market)?;
+            let book_pk = resolve_maker_book(&market_pk, maker_book.as_deref(), maker.as_deref())?;
 
             display::print_header("Deregister Maker");
             display::print_kv("Market:", &market);
-            display::print_kv("Maker book:", &maker_book);
+            if let Some(maker) = &maker {
+                display::print_kv("Maker:", maker);
+            }
+            display::print_kv("Maker book:", &book_pk.to_string());
 
             let ix =
                 build::build_deregister_maker_ix(&market_pk, &config.keypair.pubkey(), &book_pk);
@@ -190,8 +213,21 @@ pub fn handle(cmd: AuthorityCommands, config: &CliConfig) -> Result<(), CliError
     }
 }
 
-fn pair(market: &str, maker_book: &str) -> Result<(Pubkey, Pubkey), CliError> {
-    Ok((parse_pubkey(market)?, parse_pubkey(maker_book)?))
+/// The maker book to act on: given directly, or derived from the maker wallet.
+fn resolve_maker_book(
+    market: &Pubkey,
+    maker_book: Option<&str>,
+    maker: Option<&str>,
+) -> Result<Pubkey, CliError> {
+    match (maker_book, maker) {
+        (Some(book), None) => parse_pubkey(book),
+        (None, Some(maker)) => {
+            Ok(archer_sdk::pda::derive_maker_book(market, &parse_pubkey(maker)?).0)
+        }
+        _ => Err(CliError::InvalidInput(
+            "pass exactly one of --maker-book or --maker".into(),
+        )),
+    }
 }
 
 fn send(
