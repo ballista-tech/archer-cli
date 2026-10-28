@@ -7,8 +7,8 @@ use solana_client::{
     rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig},
     rpc_filter::{Memcmp, RpcFilterType},
 };
+use solana_commitment_config::CommitmentConfig;
 use solana_sdk::{
-    commitment_config::CommitmentConfig,
     pubkey::Pubkey,
     signature::{Keypair, Signer},
 };
@@ -256,6 +256,25 @@ pub fn parse_pubkey(s: &str) -> Result<Pubkey, CliError> {
     Pubkey::from_str(s).map_err(|e| CliError::InvalidInput(format!("invalid pubkey '{s}': {e}")))
 }
 
+/// `getProgramAccounts`, returning each account's raw data.
+///
+/// solana-client 4 returns `UiAccount`s rather than decoded `Account`s. Every
+/// caller asks for base64, so each account decodes; one that does not is
+/// skipped, as a malformed account is everywhere else.
+pub fn get_program_accounts_data(
+    config: &CliConfig,
+    program_id: &Pubkey,
+    accounts_config: RpcProgramAccountsConfig,
+) -> Result<Vec<(Pubkey, Vec<u8>)>, CliError> {
+    let accounts = config
+        .rpc_client
+        .get_program_ui_accounts_with_config(program_id, accounts_config)?;
+    Ok(accounts
+        .into_iter()
+        .filter_map(|(pubkey, account)| Some((pubkey, account.data.decode()?)))
+        .collect())
+}
+
 /// Every market account the program owns, matched on the state discriminator.
 ///
 /// `getProgramAccounts` with a memcmp filter, so the RPC does the filtering
@@ -276,13 +295,12 @@ fn fetch_markets(config: &CliConfig) -> Result<Vec<(Pubkey, MarketStateHeader)>,
         ..Default::default()
     };
 
-    let accounts = config
-        .rpc_client
-        .get_program_accounts_with_config(&archer_sdk::ARCHER_V1_PROGRAM_ID, accounts_config)?;
+    let accounts =
+        get_program_accounts_data(config, &archer_sdk::ARCHER_V1_PROGRAM_ID, accounts_config)?;
 
     let mut markets = Vec::with_capacity(accounts.len());
-    for (pubkey, account) in accounts {
-        if let Ok(header) = parse_market_state(&account.data) {
+    for (pubkey, data) in accounts {
+        if let Ok(header) = parse_market_state(&data) {
             markets.push((pubkey, *header));
         }
     }

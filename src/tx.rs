@@ -1,6 +1,6 @@
 use solana_client::rpc_client::RpcClient;
+use solana_compute_budget_interface::ComputeBudgetInstruction;
 use solana_sdk::{
-    compute_budget::ComputeBudgetInstruction,
     instruction::Instruction,
     signature::{Keypair, Signer},
     transaction::Transaction,

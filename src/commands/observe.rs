@@ -7,7 +7,8 @@ use solana_client::{
     rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig},
     rpc_filter::{Memcmp, RpcFilterType},
 };
-use solana_sdk::{commitment_config::CommitmentConfig, pubkey::Pubkey};
+use solana_commitment_config::CommitmentConfig;
+use solana_sdk::pubkey::Pubkey;
 
 use archer_sdk::onchain::{
     state::{ArcherAccount, DelegatedPlatform},
@@ -15,7 +16,10 @@ use archer_sdk::onchain::{
 };
 
 use crate::{
-    commands::{fee::load_market_header, market::parse_pubkey},
+    commands::{
+        fee::load_market_header,
+        market::{get_program_accounts_data, parse_pubkey},
+    },
     config::CliConfig,
     display,
     error::CliError,
@@ -600,13 +604,11 @@ fn fetch_all_maker_books_with_addr(
         ..Default::default()
     };
 
-    let accounts = config
-        .rpc_client
-        .get_program_accounts_with_config(&program_id, accounts_config)?;
+    let accounts = get_program_accounts_data(config, &program_id, accounts_config)?;
 
     let mut books = Vec::with_capacity(accounts.len());
-    for (pubkey, account) in accounts {
-        if let Ok(book) = load_maker_book(&account.data) {
+    for (pubkey, data) in accounts {
+        if let Ok(book) = load_maker_book(&data) {
             books.push((pubkey, book));
         }
     }

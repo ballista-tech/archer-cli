@@ -1,8 +1,6 @@
 use solana_client::rpc_client::RpcClient;
-use solana_sdk::{
-    commitment_config::CommitmentConfig,
-    signature::{read_keypair_file, Keypair},
-};
+use solana_commitment_config::CommitmentConfig;
+use solana_sdk::signature::{read_keypair_file, Keypair};
 
 use crate::error::CliError;
 

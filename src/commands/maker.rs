@@ -5,11 +5,17 @@ use solana_client::{
     rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig},
     rpc_filter::{Memcmp, RpcFilterType},
 };
-use solana_sdk::{commitment_config::CommitmentConfig, pubkey::Pubkey};
+use solana_commitment_config::CommitmentConfig;
+use solana_sdk::pubkey::Pubkey;
 
 use archer_sdk::onchain::MAKER_BOOK_DISCRIMINATOR;
 
-use crate::{commands::market::parse_pubkey, config::CliConfig, display, error::CliError};
+use crate::{
+    commands::market::{get_program_accounts_data, parse_pubkey},
+    config::CliConfig,
+    display,
+    error::CliError,
+};
 
 #[derive(Subcommand)]
 pub enum MakerCommands {
@@ -123,22 +129,20 @@ fn fetch_funded_maker_books(
         ..Default::default()
     };
 
-    let accounts = config
-        .rpc_client
-        .get_program_accounts_with_config(&program_id, accounts_config)?;
+    let accounts = get_program_accounts_data(config, &program_id, accounts_config)?;
 
     let mut entries = Vec::with_capacity(accounts.len());
-    for (pubkey, account) in accounts {
-        if account.data.len() < MIN_READABLE_LEN {
+    for (pubkey, data) in accounts {
+        if data.len() < MIN_READABLE_LEN {
             continue;
         }
 
-        let maker = Pubkey::try_from(&account.data[OFFSET_MAKER..OFFSET_MAKER + 32])
+        let maker = Pubkey::try_from(&data[OFFSET_MAKER..OFFSET_MAKER + 32])
             .map_err(|_| CliError::Deserialization("maker pubkey bytes".into()))?;
-        let quote_locked = read_u64_le(&account.data, OFFSET_QUOTE_LOCKED);
-        let quote_free = read_u64_le(&account.data, OFFSET_QUOTE_FREE);
-        let base_locked = read_u64_le(&account.data, OFFSET_BASE_LOCKED);
-        let base_free = read_u64_le(&account.data, OFFSET_BASE_FREE);
+        let quote_locked = read_u64_le(&data, OFFSET_QUOTE_LOCKED);
+        let quote_free = read_u64_le(&data, OFFSET_QUOTE_FREE);
+        let base_locked = read_u64_le(&data, OFFSET_BASE_LOCKED);
+        let base_free = read_u64_le(&data, OFFSET_BASE_FREE);
 
         if quote_locked + quote_free + base_locked + base_free == 0 {
             continue;
